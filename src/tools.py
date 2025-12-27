@@ -1,7 +1,7 @@
+import os
 import requests
 from typing import Dict, Any
-# MUDANÇA: Importando a biblioteca oficial diretamente, não via LangChain
-from duckduckgo_search import DDGS
+from tavily import TavilyClient
 
 def fetch_github_profile(username: str) -> Dict[str, Any]:
     """
@@ -46,27 +46,42 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
 
 def search_candidate_online(query_name: str) -> str:
     """
-    Realiza uma busca na web (DuckDuckGo) para encontrar referências do candidato.
-    Usa a implementação nativa (DDGS) para evitar erros de versão do LangChain.
+    Realiza uma busca profissional na web usando Tavily API.
+    Totalmente genérica: Funciona para qualquer cargo ou área.
     """
-    print(f"🌍 TOOL WEB SEARCH: Pesquisando '{query_name}'...")
+    print(f"🌍 TOOL WEB SEARCH (TAVILY): Pesquisando '{query_name}'...")
+    
     try:
-        # Usando a lib nativa diretamente (mais estável)
+        # Pega a chave do ambiente
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            return "Erro: TAVILY_API_KEY não encontrada."
+
+        client = TavilyClient(api_key=api_key)
+        
+        search_query = f"{query_name} linkedin personal website professional profile github portfolio homepage"
+        
+        response = client.search(
+            query=search_query,
+            search_depth="advanced",
+            max_results=10
+        )
+        
         results = []
-        with DDGS() as ddgs:
-            # Busca 3 resultados
-            raw_results = list(ddgs.text(f"{query_name} developer linkedin portfolio", max_results=3))
-            for res in raw_results:
-                results.append(f"- Título: {res['title']}\n  Link: {res['href']}\n  Resumo: {res['body']}")
-        
-        if not results:
-            return "Nenhum resultado relevante encontrado online."
+        if 'results' in response and response['results']:
+            for res in response['results']:
+                results.append(f"- Título: {res.get('title')}\n  Link: {res.get('url')}\n  Conteúdo: {res.get('content')}")
             
-        return "\n\n".join(results)
-        
+            return "\n\n".join(results)
+            
+        return "Nenhum resultado relevante encontrado online."
+
     except Exception as e:
-        return f"Erro na busca web: {e}"
+        return f"Erro na busca web (Tavily): {str(e)}"
 
 # Teste rápido
 if __name__ == "__main__":
+    # Carrega env vars se estiver rodando localmente apenas o arquivo tools.py
+    from dotenv import load_dotenv
+    load_dotenv()
     print(search_candidate_online("Thiago Memelli"))

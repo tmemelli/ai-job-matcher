@@ -1,4 +1,4 @@
-name: Integração Contínua (CI)
+name: CI
 
 on:
   push:
@@ -7,34 +7,63 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test-setup:
+  test:
     runs-on: ubuntu-latest
     
-    # --- NOVO: Variáveis falsas para enganar o código durante o teste ---
     env:
-      OPENAI_API_KEY: "sk-proj-chave-falsa-apenas-para-teste-ci"
-      APP_PASSWORD: "senha-teste"
-    # ------------------------------------------------------------------
+      # Variáveis fake para imports não falharem
+      OPENAI_API_KEY: "sk-fake-key-for-ci-testing-only"
+      APP_PASSWORD: "ci-test-password"
+      TAVILY_API_KEY: "tvly-fake-key-for-ci"
 
     steps:
-    - name: 📥 Baixar código
+    - name: 📥 Checkout
       uses: actions/checkout@v4
 
-    - name: 🐍 Configurar Python 3.11
+    - name: 🐍 Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
+        cache: 'pip'  # Cache das dependências = CI mais rápido
 
     - name: 📦 Instalar dependências
       run: |
         python -m pip install --upgrade pip
-        # Instala exatamente o que você tem no PC
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        # Garante as libs de teste
-        pip install pytest httpx
+        pip install -r requirements.txt
+        pip install pytest
 
-    - name: 🧪 Teste de Fumaça (Smoke Test)
+    - name: ✅ Verificar imports
       run: |
-        # Agora isso vai funcionar porque a chave falsa existe no ambiente
-        python -c "from src.agent import analyze_candidate_with_tools; print('✅ Módulo Agent: Carregou com sucesso!')"
-        python -c "from src.tools import search_candidate_online; print('✅ Módulo Tools: Carregou com sucesso!')"
+        python -c "from src.agent import analyze_candidate_with_tools, extract_text_from_pdf; print('✅ Agent OK')"
+        python -c "from src.tools import fetch_github_profile, search_candidate_online; print('✅ Tools OK')"
+        python -c "from src.app import main; print('✅ App OK')"
+
+    - name: 🧪 Verificar sintaxe Python
+      run: |
+        python -m py_compile src/agent.py
+        python -m py_compile src/tools.py
+        python -m py_compile src/app.py
+        echo "✅ Sintaxe OK"
+
+    - name: 📄 Testar extração de PDF
+      run: |
+        python -c "
+from src.agent import extract_text_from_pdf
+text = extract_text_from_pdf('data/resume.pdf')
+assert len(text) > 100, 'PDF deveria ter mais de 100 caracteres'
+assert 'Thiago' in text or 'Python' in text, 'PDF deveria conter dados do candidato'
+print(f'✅ PDF extraído: {len(text)} caracteres')
+"
+
+    - name: 🐙 Testar GitHub API (sem autenticação)
+      run: |
+        python -c "
+from src.tools import fetch_github_profile
+result = fetch_github_profile('tmemelli')
+# Pode falhar por rate limit, mas não deve dar erro de código
+if 'error' not in result:
+    assert result.get('username') == 'tmemelli', 'Username incorreto'
+    print(f'✅ GitHub API OK: {result.get(\"public_repos\")} repos')
+else:
+    print(f'⚠️ GitHub API com limite, mas código OK: {result}')
+"

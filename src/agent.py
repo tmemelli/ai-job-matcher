@@ -1,3 +1,8 @@
+"""
+Agent CORRIGIDO - Usa o campo 'blog' do GitHub para website
+============================================================
+"""
+
 import os
 import json
 from typing import List, Optional
@@ -5,8 +10,7 @@ from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
 from pypdf import PdfReader
-# import google.generativeai as genai
-# Importamos as duas ferramentas agora
+
 from src.tools import fetch_github_profile, search_candidate_online
 
 load_dotenv()
@@ -14,12 +18,7 @@ load_dotenv()
 # --- CONFIGURAÇÃO ---
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")
-# OPÇÃO A: OpenAI (GPT-4o)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")
-# OPÇÃO B: Google (Gemini)
-# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-# MODEL_NAME = "gemini-1.5-flash"
+
 
 # --- SCHEMAS (ESTRUTURA DE DADOS) ---
 
@@ -89,17 +88,46 @@ def analyze_candidate_with_tools(cv_text: str, job_description: str, company_nam
     github_user = identity.get("github")
     
     # 2. Executar Tools (GitHub + Web Search)
+    github_data = {}
     github_data_context = "Perfil GitHub não encontrado."
+    
+    # ⭐ NOVO: Variáveis para URLs extraídas
+    github_profile_url = None
+    github_website = None  # Campo 'blog' do GitHub
+    
     if github_user and github_user.lower() not in ["none", "null", ""]:
         clean_user = github_user.split("/")[-1].replace("@", "").strip()
+        print(f"🔍 Buscando GitHub: {clean_user}")
         try:
-            raw_data = fetch_github_profile(clean_user)
-            github_data_context = json.dumps(raw_data, ensure_ascii=False)
-        except Exception:
-            pass
+            github_data = fetch_github_profile(clean_user)
+            github_data_context = json.dumps(github_data, ensure_ascii=False, indent=2)
+            
+            # ⭐ EXTRAIR URLs DO GITHUB
+            github_profile_url = f"https://github.com/{clean_user}"
+            github_website = github_data.get("blog")  # <-- CAMPO IMPORTANTE!
+            
+            print(f"   ✅ GitHub encontrado: {github_profile_url}")
+            if github_website:
+                print(f"   ✅ Website do GitHub: {github_website}")
+            else:
+                print(f"   ⚠️ Website não configurado no GitHub")
+                
+        except Exception as e:
+            print(f"   ❌ Erro: {e}")
             
     # Nova Tool: Busca na Web pelo nome
     web_search_context = search_candidate_online(candidate_name)
+    
+    # ⭐ NOVO: Construir seção de URLs explícitas
+    urls_section = f"""
+═══════════════════════════════════════════════════════════════
+🔗 URLS ENCONTRADAS (USE ESTAS EXATAMENTE NO RELATÓRIO)
+═══════════════════════════════════════════════════════════════
+GitHub: {github_profile_url or 'Não encontrado'}
+Website Pessoal: {github_website or 'Não encontrado'}
+LinkedIn: Extrair do GitHub ou CV
+═══════════════════════════════════════════════════════════════
+"""
 
     # 3. Análise Contextual (O Grande Prompt)
     print("🤖 Fase 2: Gerando Relatório Completo...")
@@ -107,31 +135,50 @@ def analyze_candidate_with_tools(cv_text: str, job_description: str, company_nam
     final_prompt = f"""
     Você é um Recrutador Especialista Tech da empresa **{company_name}**.
     
-    VAGA:
-    {job_description}
+    SUA MISSÃO:
+    Avaliar a compatibilidade entre um candidato e uma vaga.
     
-    CANDIDATO (CV):
-    {cv_text}
+    ENTRADAS:
+    1. VAGA: {job_description}
+    2. CANDIDATO (CV): {cv_text}
     
     GITHUB (API):
     {github_data_context}
     
+    {urls_section}
+    
     WEB SEARCH (RESULTADOS):
     {web_search_context}
     
+    ⚠️ REGRAS CRÍTICAS:
+    1. O PDF (Currículo) é a FONTE SOBERANA para experiência profissional.
+    2. Para 'web_presence_analysis', você DEVE incluir as URLs encontradas acima.
+       - Se tem GitHub: CITE a URL completa (https://github.com/...)
+       - Se tem Website Pessoal: CITE a URL completa (https://...)
+       - Se tem LinkedIn: CITE a URL completa
+    3. NÃO INVENTE URLs. Use apenas as que foram fornecidas acima.
+    4. Se a busca web falhou mas temos dados do GitHub, use os dados do GitHub.
+
     INSTRUÇÕES:
     1. Analise o Match Score (0-100) com rigor.
     2. Analise se o candidato tem fit técnico e cultural para a **{company_name}**.
-    3. Identifique 'detected_hard_skills': Liste TODAS as tecnologias que o candidato domina (mesmo as que não estão na vaga).
+    3. Identifique 'detected_hard_skills': Liste TODAS as tecnologias que o candidato domina.
     4. Compare senioridade da vaga vs senioridade do candidato PARA A VAGA.
-    5. Identifique 'job_required_seniority': O que a vaga pede? (Ex: Coordenador).
-    6. Identifique 'candidate_seniority_for_job': Qual a senioridade do candidato NESTA ÁREA ESPECÍFICA?
-       - ATENÇÃO: Se o candidato é Sênior em T.I., mas a vaga é de Cozinheiro, a senioridade dele para a vaga é "Nenhuma" ou "Iniciante". NÃO use a senioridade de outra área.
+    5. Identifique 'job_required_seniority': O que a vaga pede?
+    6. Identifique 'candidate_seniority_for_job': Qual a senioridade do candidato NESTA ÁREA?
     7. Compare as skills do candidato EXATAMENTE com o que a vaga pede.
     8. Liste o que falta (missing_skills).
-    9. Dê uma nota de Match (match_score) rigorosa baseada na vaga, não apenas no perfil genérico.
-    10. Use o contexto da Web Search para validar se ele tem presença online (artigos, LinkedIn ativo, etc) em 'web_presence_analysis'.
-    11. Gere 3 perguntas de entrevista técnicas desafiadoras baseadas no perfil dele.
+    9. Dê uma nota de Match (match_score) rigorosa.
+    
+    10. ⭐ IMPORTANTE para 'web_presence_analysis':
+        - COMECE listando as URLs encontradas (GitHub, Website, LinkedIn)
+        - Depois de listar as URLs, PULE UMA LINHA antes do resumo
+        - Formato esperado:
+          "GitHub: [URL]. Website: [URL]. LinkedIn: [URL].
+          
+          [Resumo do perfil em 2-3 frases]"
+    
+    11. Gere 3-5 perguntas de entrevista técnicas baseadas no perfil.
     12. Responda em Português do Brasil.
     """
     

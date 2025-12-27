@@ -1,7 +1,13 @@
+"""
+App CORRIGIDO - Renderiza links corretamente
+============================================
+"""
+
 import streamlit as st
 import os
 import sys
 import tempfile
+import re
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,37 +29,61 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def extract_urls_from_text(text: str) -> dict:
+    """Extrai URLs do texto da análise"""
+    urls = {
+        "github": None,
+        "website": None,
+        "linkedin": None
+    }
+    
+    # GitHub
+    github_match = re.search(r'https?://github\.com/[a-zA-Z0-9_-]+', text)
+    if github_match:
+        urls["github"] = github_match.group()
+    
+    # Website pessoal (não github, não linkedin)
+    website_matches = re.findall(r'https?://[^\s<>"\']+', text)
+    for url in website_matches:
+        url_lower = url.lower()
+        if 'github.com' not in url_lower and 'linkedin.com' not in url_lower:
+            if any(ext in url_lower for ext in ['.com.br', '.com', '.io', '.dev', '.me']):
+                urls["website"] = url.rstrip('.,;:')
+                break
+    
+    # LinkedIn
+    linkedin_match = re.search(r'https?://(?:www\.)?linkedin\.com/in/[a-zA-Z0-9_-]+/?', text)
+    if linkedin_match:
+        urls["linkedin"] = linkedin_match.group().rstrip('/')
+    
+    return urls
+
+
 def main():
+    st.markdown("<h1 style='text-align: center;'>🎯 AI Job Matcher Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: grey;'>Analise o 'Fit' do candidato para sua vaga específica</p>", unsafe_allow_html=True)
     st.markdown("---")
 
-    st.markdown("<h1 style='text-align: center;'>🎯 AI Job Matcher Pro</h1>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # --- 🔒 TRAVA DE SEGURANÇA (NOVO CÓDIGO AQUI) ---
+    # --- 🔒 TRAVA DE SEGURANÇA ---
     with st.sidebar:
         st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3064/3064197.png", width=50)
         app_password = st.text_input("🔒 Senha de Acesso", type="password", help="Peça a senha ao administrador")
         
         SENHA_CORRETA = os.getenv("APP_PASSWORD")
         
-        # 1. Se não configurou a senha no .env (Erro do Programador)
         if not SENHA_CORRETA:
             st.error("Erro de Configuração: Senha não definida no servidor.")
             st.stop()
 
-        # 2. Se o campo está vazio (Usuário ainda não digitou)
         if not app_password:
             st.info("Digite a senha para liberar o sistema.")
-            st.stop()  # Para aqui silenciosamente
+            st.stop()
 
-        # 3. Se digitou, mas está errada (Erro do Usuário)
         if app_password != SENHA_CORRETA:
             st.error("⚠️ Senha incorreta.")
             st.stop()
             
-    # --- FIM DA TRAVA ---
-
     with st.sidebar:
         st.header("🏢 Contexto da Vaga")
         company_name = st.text_input("Empresa", placeholder="Ex: Google")
@@ -65,7 +95,7 @@ def main():
 
     if uploaded_file and job_description:
         if st.button("🚀 Analisar Compatibilidade", type="primary", use_container_width=True):
-            with st.spinner(f"Analisando candidato, GitHub e presença Web..."):
+            with st.spinner(f"Analisando candidato, LinkedIn, GitHub e presença Web..."):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     tmp.write(uploaded_file.getvalue())
                     tmp_path = tmp.name
@@ -107,13 +137,35 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # WEB PRESENCE CARD
-                        st.markdown(f"""
-                        <div class="css-card">
-                            <strong style="color:#2c3e50;">🌍 Presença Online</strong>
-                            <p style="font-size:13px; color:#666; margin-top:5px;">{result.web_presence_analysis}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # ⭐ PRESENÇA ONLINE COM BOTÕES CLICÁVEIS
+                        st.markdown("### 🌐 Presença Online")
+                        
+                        # Extrair URLs do texto de análise
+                        urls = extract_urls_from_text(result.web_presence_analysis)
+                        
+                        # GitHub
+                        github_url = urls.get("github") or (f"https://github.com/{result.github_username}" if result.github_username else None)
+                        if github_url:
+                            st.link_button("🐙 GitHub", github_url, use_container_width=True)
+                        else:
+                            st.button("🐙 GitHub - Não encontrado", disabled=True, use_container_width=True)
+                        
+                        # Website
+                        website_url = urls.get("website")
+                        if website_url:
+                            st.link_button("🌍 Website Pessoal", website_url, use_container_width=True)
+                        else:
+                            st.button("🌍 Website - Não encontrado", disabled=True, use_container_width=True)
+                        
+                        # LinkedIn
+                        linkedin_url = urls.get("linkedin")
+                        if linkedin_url:
+                            st.link_button("💼 LinkedIn", linkedin_url, use_container_width=True)
+                        else:
+                            st.button("💼 LinkedIn - Não encontrado", disabled=True, use_container_width=True)
+                        
+                        # Resumo textual
+                        st.info(result.web_presence_analysis)
 
                     with col_details:
                         # ANÁLISE
@@ -139,10 +191,9 @@ def main():
                                 missing_html += f'<span class="missing-tag">{gap}</span>'
                             st.markdown(f"""<div class="css-card">{missing_html}</div>""", unsafe_allow_html=True)
 
-                        # ARSENAL COMPLETO (CINZA) - AQUI ESTÁ A CORREÇÃO DA "STACK POBRE"
+                        # ARSENAL COMPLETO (CINZA)
                         st.markdown("### 🛠️ Arsenal Técnico Completo (Detectado)")
                         full_stack_html = ""
-                        # Mostra top 20 para não quebrar a tela
                         for skill in result.detected_hard_skills[:20]:
                             full_stack_html += f'<span class="skill-tag-gray">{skill}</span>'
                         st.markdown(f"""<div class="css-card">{full_stack_html}</div>""", unsafe_allow_html=True)
@@ -158,6 +209,8 @@ def main():
 
                 except Exception as e:
                     st.error(f"Erro: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
                 finally:
                     if os.path.exists(tmp_path): os.unlink(tmp_path)
 
