@@ -24,7 +24,7 @@
 [Demonstração](#️-demonstração-da-aplicação) •
 [Instalação](#-instalação) •
 [Arquitetura](#️-arquitetura) •
-[Como Funciona](#-como-funciona) •
+[Escalabilidade](#-escalabilidade--arquitetura-de-plugins) •
 [Roadmap](#️-roadmap)
 
 </div>
@@ -114,12 +114,12 @@ Visão geral das principais funcionalidades do sistema:
 | Dashboard Executivo | Análise de Gaps |
 |:---:|:---:|
 | ![Dashboard Principal](assets/dashboard.png) | ![Análise de Gaps](assets/gaps.png) |
-| *Score de compatibilidade e Senioridade* | *Identificação visual de skills faltantes* |
+| *Score de compatibilidade e comparativo de senioridade* | *Identificação visual de skills faltantes* |
 
 | Modo Entrevista | Acesso Seguro |
 |:---:|:---:|
 | ![Perguntas de Entrevista](assets/interview.png) | ![Tela de Login](assets/login.png) |
-| *Perguntas técnicas geradas por IA* | *Controle de acesso para recrutadores* |
+| *Perguntas técnicas geradas por IA com dificuldade* | *Controle de acesso para recrutadores* |
 
 </div>
 
@@ -135,7 +135,7 @@ Para validar a precisão do agente, submetemos o sistema a um teste cego com uma
 * **Stack Exigida:** Python, AWS (Lambda, DynamoDB), Docker, Terraform.
 
 **2. A Análise do Agente**
-O sistema processou o currículo contra a vaga e gerou os seguintes insights (baseados nos prints acima):
+O sistema processou o currículo contra a vaga e gerou os seguintes insights:
 
 * **✅ Match Score: 85%**
     * O agente identificou uma alta compatibilidade. Diferente de um ATS comum que poderia descartar o candidato por falta de palavras-chave exatas de infraestrutura, a IA entendeu que a base sólida de Engenharia de Software (Clean Arch, TDD, SOLID) sustentava o nível **Sênior**.
@@ -149,18 +149,103 @@ O sistema processou o currículo contra a vaga e gerou os seguintes insights (ba
 
 ---
 
+## 🔌 Escalabilidade & Arquitetura de Plugins
+
+> **Nota de Engenharia:** Este projeto foi desenvolvido intencionalmente para o setor de **Tecnologia**, utilizando ferramentas como GitHub API para validação de perfis de desenvolvedores. No entanto, a arquitetura foi pensada para ser **extensível e escalável** para qualquer setor.
+
+### Por que funciona para TI hoje?
+
+O agente utiliza **tools plugáveis** que podem ser substituídas conforme o domínio:
+
+```python
+# Configuração atual (Desenvolvedores)
+tools = [
+    GitHubTool(),        # Valida repositórios e contribuições
+    TavilySearchTool(),  # Busca LinkedIn, artigos, portfólio
+]
+```
+
+### Como escalar para outros setores?
+
+A análise via LLM (GPT-4o) é **genérica** — funciona para qualquer profissão. O que muda são as **ferramentas de validação externa**:
+
+```python
+# Exemplo: Setor de Saúde (Médicos, Enfermeiros)
+tools = [
+    CRMTool(),           # Validação no Conselho Regional de Medicina
+    LattesTool(),        # Currículo Lattes (publicações, especializações)
+    PubMedTool(),        # Artigos científicos publicados
+    LinkedInTool(),      # Presença profissional
+]
+
+# Exemplo: Setor Jurídico (Advogados)
+tools = [
+    OABTool(),           # Validação na Ordem dos Advogados do Brasil
+    JusBrasilTool(),     # Casos e jurisprudência
+    LinkedInTool(),      # Networking profissional
+]
+
+# Exemplo: Setor Acadêmico (Professores, Pesquisadores)
+tools = [
+    LattesTool(),        # Currículo Lattes completo
+    GoogleScholarTool(), # Índice H, citações, publicações
+    ORCIDTool(),         # Identificador de pesquisador
+]
+
+# Exemplo: Setor Criativo (Designers, Artistas)
+tools = [
+    BehanceTool(),       # Portfólio de design
+    DribbbleTool(),      # Trabalhos visuais
+    InstagramTool(),     # Presença e engajamento
+]
+```
+
+### Arquitetura Proposta para v2.0
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                     🧠 CORE ENGINE (Genérico)                     │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │
+│   │ PDF Parser  │  │ LLM Analysis│  │ Structured Output       │   │
+│   │ (pypdf)     │  │ (GPT-4o)    │  │ (Pydantic)              │   │
+│   └─────────────┘  └─────────────┘  └─────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌───────────────────────────────────────────────────────────────────┐
+│                 🔌 PLUGIN LAYER (Por Setor)                       │
+│  ┌──────────┐  ┌───────────┐  ┌───────────┐  ┌──────────────────┐ │
+│  │ TechTools│  │HealthTools│  │ LegalTools│  │ AcademicTools    │ │
+│  │ • GitHub │  │ • CRM     │  │ • OAB     │  │ • Lattes         │ │
+│  │ • Stack  │  │ • Lattes  │  │ • JusBr   │  │ • Scholar        │ │
+│  └──────────┘  └───────────┘  └───────────┘  └──────────────────┘ │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### Benefícios desta Arquitetura
+
+| Aspecto | Benefício |
+|---------|-----------|
+| **Manutenibilidade** | Adicionar novo setor = criar novo plugin |
+| **Testabilidade** | Cada tool pode ser testada isoladamente |
+| **Flexibilidade** | Cliente escolhe quais tools ativar |
+| **Custo** | Paga apenas pelas APIs que usar |
+
+> 💡 **Para recrutadores:** Este projeto demonstra não apenas habilidade técnica, mas **pensamento de produto** — a capacidade de criar soluções que escalam além do MVP inicial.
+
+---
+
 ## 🛠️ Stack Tecnológica
 
 | Camada | Tecnologia | Propósito |
 |--------|------------|-----------|
 | **LLM** | OpenAI GPT-4o | Análise contextual e geração de insights |
-| **Orquestração** | LangChain Core | Composição de tools e chains |
 | **Validação** | Pydantic v2 | Structured Outputs com type safety |
 | **Interface** | Streamlit | Dashboard interativo |
-| **Tools** | Tavily + DuckDuckGo | Busca web com fallback |
+| **Web Search** | Tavily + DuckDuckGo | Busca web com fallback automático |
 | **APIs** | GitHub REST API | Análise de repositórios e atividade |
 | **PDF** | pypdf | Extração de texto de currículos |
-| **CI/CD** | GitHub Actions | Smoke tests automatizados |
+| **CI/CD** | GitHub Actions | Testes automatizados a cada push |
 
 ---
 
@@ -200,11 +285,11 @@ OPENAI_API_KEY=sk-your-key-here
 # Opcional: modelo (default: gpt-4o-2024-08-06)
 OPENAI_MODEL=gpt-4o-2024-08-06
 
-# Senha de acesso (Defina a senha que preferir para seu ambiente local)
-APP_PASSWORD=1234
+# Senha de acesso ao dashboard
+APP_PASSWORD=sua-senha-aqui
 
-# Opcional: chave API Tavily para busca web (se aplicável)
-TAVILY_API_KEY=your-tavily-api-key-here
+# Opcional: chave API Tavily para busca web otimizada (fallback para DuckDuckGo)
+TAVILY_API_KEY=tvly-your-key-here
 ```
 
 ### Executar
@@ -224,22 +309,31 @@ ai-job-matcher/
 │
 ├── 📂 .github/
 │   └── workflows/
-│       └── ci.yml              # Pipeline de integração contínua
+│       └── ci.yml              # Pipeline CI/CD com testes automatizados
 │
 ├── 📂 src/
-│   ├── __init__.py
-│   ├── agent.py                # 🧠 Cérebro: orquestração e análise LLM
+│   ├── __init__.py             # Marca o diretório como pacote Python
+│   ├── agent.py                # 🧠 Cérebro: orquestração LLM + tools
 │   ├── tools.py                # 🔧 Ferramentas: GitHub API + Web Search
 │   └── app.py                  # 🖥️ Interface: Dashboard Streamlit
 │
-├── 📂 data/
-│   └── resume.pdf              # Exemplo de currículo para testes
+├── 📂 assets/                 # Screenshots para documentação
+│   ├── dashboard.png           # Tela principal com score e senioridade
+│   ├── gaps.png                # Visualização de skills faltantes
+│   ├── interview.png           # Perguntas de entrevista geradas
+│   ├── login.png               # Tela de autenticação
+│   ├── setup.png               # Configuração inicial do sistema
+│   ├── vaga-descricao.png      # Exemplo de descrição de vaga
+│   └── vaga-titulo.png         # Exemplo de título de vaga
 │
-├── .env                        # Variáveis de ambiente (não commitado)
-├── .env.example                # Template de configuração
-├── .gitignore
-├── requirements.txt
-└── README.md
+├── 📂 data/
+│   └── resume.pdf              # CV de exemplo para testes
+│
+├── .env.example                # Template de variáveis de ambiente
+├── .gitignore                  # Arquivos ignorados pelo Git
+├── LICENSE                     # Licença MIT
+├── requirements.txt            # Dependências Python
+└── README.md                   # Esta documentação
 ```
 
 ### Fluxo de Dados
@@ -310,43 +404,46 @@ class CandidateAnalysis(BaseModel):
 
 ## 🧪 Testes e CI/CD
 
-O projeto usa GitHub Actions para garantir qualidade:
+O projeto usa GitHub Actions para garantir qualidade a cada commit:
 
 ```yaml
-# .github/workflows/ci.yml
-- name: ✅ Verificar imports
-- name: 🧪 Verificar sintaxe  
-- name: 📄 Testar extração de PDF
-- name: 🐙 Testar GitHub API
+# .github/workflows/ci.yml - Testes executados automaticamente
+- Verificar imports dos módulos
+- Verificar sintaxe Python (py_compile)
+- Testar extração de PDF
+- Testar conexão com GitHub API
 ```
 
-A cada push na `main`:
-1. ✅ Setup do ambiente Python 3.11
-2. ✅ Instalação de dependências
-3. ✅ Smoke tests nos módulos críticos
+**Status atual:** [![CI Status](https://img.shields.io/github/actions/workflow/status/tmemelli/ai-job-matcher/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/tmemelli/ai-job-matcher/actions)
 
 ---
 
 ## 🗺️ Roadmap
 
-### v1.0 (Atual)
-- [x] Análise de CV via GPT-4o
-- [x] Integração GitHub API
-- [x] Web Search (Tavily + DuckDuckGo)
-- [x] Gerador de perguntas de entrevista
-- [x] Dashboard Streamlit
-- [x] CI/CD básico
+### v1.0 ✅ (Atual)
+- [x] Análise de CV via GPT-4o com Structured Outputs
+- [x] Integração GitHub API para validação de perfil
+- [x] Web Search com fallback (Tavily → DuckDuckGo)
+- [x] Gerador de perguntas de entrevista personalizadas
+- [x] Dashboard interativo em Streamlit
+- [x] CI/CD com GitHub Actions
+- [x] Documentação completa com estudo de caso
 
-### v1.1 (Próximo)
-- [ ] Suporte a múltiplos candidatos (batch)
-- [ ] Export PDF do relatório
+### v1.1 🔜 (Próximo)
+- [ ] Análise em lote (múltiplos candidatos)
+- [ ] Export PDF do relatório executivo
 - [ ] Histórico de análises (SQLite)
-- [ ] Rate limiting para APIs
+- [ ] Rate limiting inteligente para APIs
+- [ ] Cache de resultados
+- [ ] GitHub Token para aumentar rate limit (60 → 5.000 req/hora)
 
-### v2.0 (Futuro)
+
+### v2.0 🚀 (Futuro)
+- [ ] **Arquitetura de Plugins** para outros setores
 - [ ] RAG com base de vagas anteriores
 - [ ] Integração LinkedIn API (OAuth)
 - [ ] Multi-tenant com autenticação
+- [ ] API REST para integrações
 - [ ] Deploy em cloud (Railway/Render)
 
 ---
@@ -366,42 +463,53 @@ Contribuições são bem-vindas! Por favor:
 ## 📄 Licença
 
 Distribuído sob a licença MIT. Veja [LICENSE](LICENSE) para mais informações.
+
 ---
 
 ## 🙏 Agradecimentos
 
-- **Streamlit** - Pela capacidade de criar dashboards interativos em minutos
-- **OpenAI** - Pelos modelos GPT-4o que dão vida à inteligência do agente
-- **Pydantic** - Pela validação rigorosa de dados e *Structured Outputs*
-- **Tavily** - Pela API de busca otimizada para agentes de IA
-- **PyPDF** - Pela extração eficiente de dados de arquivos PDF
+- **OpenAI** — Pelos modelos GPT-4o que dão inteligência ao agente
+- **Streamlit** — Pela capacidade de criar dashboards em minutos
+- **Pydantic** — Pela validação rigorosa e Structured Outputs
+- **Tavily** — Pela API de busca otimizada para agentes de IA
+- **pypdf** — Pela extração eficiente de texto de PDFs
 
 ---
 
-## 📞 Contato & Suporte
+## 📞 Contato & Oportunidades
 
-Se você é um **recrutador** ou **hiring manager** procurando um desenvolvedor que une Engenharia de Software com Inteligência Artificial:
+Se você é um **recrutador** ou **hiring manager** procurando um desenvolvedor que une **Engenharia de Software** com **Inteligência Artificial**:
 
-📧 **Email**: [tmemelli@gmail.com](mailto:tmemelli@gmail.com)
-💼 **LinkedIn**: [https://www.linkedin.com/in/thiagomemelli/](https://www.linkedin.com/in/thiagomemelli/)
-📱 **Telefone**: [+55 27 98903-0474](tel:+5527989030474)
-🌐 **Portfolio**: [https://thiagomemelli.com.br/](https://thiagomemelli.com.br/)
+<div align="center">
 
-**Estou disponível para:**
-- Posições de AI Engineer & Backend Python
-- Desenvolvimento de Agentes Autônomos (RAG/Function Calling)
-- Automação de Processos de Negócio
-- Consultoria em Integração de LLMs
-- Oportunidades no Brasil ou Exterior (Remoto)
+| Canal | Contato |
+|-------|---------|
+| 📧 **Email** | [tmemelli@gmail.com](mailto:tmemelli@gmail.com) |
+| 💼 **LinkedIn** | [linkedin.com/in/thiagomemelli](https://www.linkedin.com/in/thiagomemelli/) |
+| 🐙 **GitHub** | [github.com/tmemelli](https://github.com/tmemelli) |
+| 🌐 **Portfolio** | [thiagomemelli.com.br](https://thiagomemelli.com.br/) |
+| 📱 **WhatsApp** | [+55 27 98903-0474](https://wa.me/5527989030474) |
+
+</div>
+
+### Estou disponível para:
+
+- 🤖 Posições de **AI Engineer** & **Backend Python**
+- 🔧 Desenvolvimento de **Agentes Autônomos** (RAG, Function Calling, Multi-Agent)
+- ⚡ **Automação de Processos** com Inteligência Artificial
+- 💡 Consultoria em **Integração de LLMs** em produtos existentes
+- 🌎 Oportunidades **Brasil ou Exterior** (Remoto)
 
 ---
 
 <div align="center">
 
-### ⭐ Se este projeto te impressionou, considere dar uma estrela no repo!
+### ⭐ Se este projeto demonstrou valor, considere dar uma estrela!
 
-**Desenvolvido com 🧡 e Inteligência Artificial por Thiago Memelli**
+**Desenvolvido com 🧡 e Inteligência Artificial por [Thiago Memelli](https://github.com/tmemelli)**
 
-*Projeto de Agente Autônomo - Dezembro 2025*
+*Projeto de Agente Autônomo — Dezembro 2025*
+
+[![GitHub stars](https://img.shields.io/github/stars/tmemelli/ai-job-matcher?style=social)](https://github.com/tmemelli/ai-job-matcher)
 
 </div>

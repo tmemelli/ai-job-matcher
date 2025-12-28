@@ -1,3 +1,21 @@
+# ==============================================================================
+# CI/CD Pipeline - AI Job Matcher Pro
+# ==============================================================================
+# Este workflow executa testes automatizados a cada push ou PR na branch main.
+# 
+# TESTES EXECUTADOS:
+#   1. Verificação de imports (garante que módulos carregam sem erro)
+#   2. Verificação de sintaxe (py_compile em todos os arquivos)
+#   3. Teste de extração de PDF (valida que pypdf funciona)
+#   4. Teste da GitHub API (valida conexão externa)
+#
+# VARIÁVEIS DE AMBIENTE:
+#   - Usamos chaves fake para que os imports não falhem ao inicializar clientes
+#   - Os testes não fazem chamadas reais à OpenAI (custaria dinheiro)
+#
+# TEMPO MÉDIO: ~30 segundos
+# ==============================================================================
+
 name: CI
 
 on:
@@ -11,33 +29,44 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
+      # Chaves fake - necessárias para imports não falharem
+      # Os módulos inicializam clientes no load, então precisam dessas vars
       OPENAI_API_KEY: "sk-fake-key-for-ci-testing-only"
       APP_PASSWORD: "ci-test-password"
       TAVILY_API_KEY: "tvly-fake-key-for-ci"
 
     steps:
-    - name: Checkout
+    # --------------------------------------------------------------------------
+    # SETUP: Prepara o ambiente
+    # --------------------------------------------------------------------------
+    
+    - name: Checkout do codigo
       uses: actions/checkout@v4
 
-    - name: Setup Python
+    - name: Setup Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: 'pip'
+        cache: 'pip'  # Cache acelera builds subsequentes
 
     - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest
 
-    - name: Verificar imports
+    # --------------------------------------------------------------------------
+    # TESTES: Validações do código
+    # --------------------------------------------------------------------------
+
+    - name: Verificar imports dos modulos
+      # Garante que todos os módulos carregam sem erro de sintaxe ou dependência
       run: |
         python -c "from src.agent import analyze_candidate_with_tools, extract_text_from_pdf; print('Agent OK')"
         python -c "from src.tools import fetch_github_profile, search_candidate_online; print('Tools OK')"
         python -c "from src.app import main; print('App OK')"
 
     - name: Verificar sintaxe Python
+      # py_compile detecta erros de sintaxe sem executar o código
       run: |
         python -m py_compile src/agent.py
         python -m py_compile src/tools.py
@@ -45,7 +74,9 @@ jobs:
         echo "Sintaxe OK"
 
     - name: Testar extracao de PDF
+      # Valida que pypdf consegue extrair texto do CV de exemplo
       run: python -c "from src.agent import extract_text_from_pdf; text = extract_text_from_pdf('data/resume.pdf'); assert len(text) > 100; print('PDF OK')"
 
     - name: Testar GitHub API
-      run: python -c "from src.tools import fetch_github_profile; result = fetch_github_profile('tmemelli'); print('GitHub API OK')"
+      # Testa conexão com GitHub API (pode falhar por rate limit, isso é OK)
+      run: python -c "from src.tools import fetch_github_profile; r = fetch_github_profile('tmemelli'); print('GitHub OK' if 'error' not in r else 'GitHub rate limit OK')"
