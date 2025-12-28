@@ -159,9 +159,15 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
     # Endpoint: GET /users/{username}
     # Retorna: bio, company, blog, location, followers, public_repos, etc.
     # ==========================================================================
-    
+
+    # Adicionado header de autenticação opcional para evitar rate limit
+    headers = {}
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"token {token}"
+
     user_url = f"https://api.github.com/users/{username}"
-    user_response = requests.get(user_url)
+    user_response = requests.get(user_url, headers=headers)
     
     # Verifica se o usuário existe
     # Status 200 = sucesso, 404 = não encontrado
@@ -170,7 +176,7 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
     
     # Parseia a resposta JSON
     user_data = user_response.json()
-    
+
     # ==========================================================================
     # ETAPA 2: BUSCAR REPOSITÓRIOS RECENTES
     # ==========================================================================
@@ -180,10 +186,11 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
     #   - per_page=5: Limita a 5 resultados (economiza bandwidth)
     # ==========================================================================
     
-    repos_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=5"
-    repos_response = requests.get(repos_url)
+    repos_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=10"
+    repos_response = requests.get(repos_url, headers=headers)
     repos_data = repos_response.json()
-    
+    detected_portfolio = user_data.get("blog")
+
     # ==========================================================================
     # ETAPA 3: PROCESSAR E RESUMIR REPOSITÓRIOS
     # ==========================================================================
@@ -194,7 +201,14 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
     #   - description: O que o projeto faz
     # ==========================================================================
     
+    # Filtra sites genéricos (linkedin, twitter) para tentar achar um github.io real
+    generic_domains = ["twitter.com", "linkedin.com", "leetcode.com", "instagram.com"]
+    is_generic = False
+    if detected_portfolio:
+        is_generic = any(d in str(detected_portfolio).lower() for d in generic_domains)
+
     repo_summaries = []
+    possible_sites = []
     
     # Verifica se repos_data é uma lista (pode ser dict de erro em alguns casos)
     if isinstance(repos_data, list):
@@ -203,9 +217,21 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
                 "name": repo.get("name"),
                 "language": repo.get("language"),
                 "stars": repo.get("stargazers_count"),
-                "description": repo.get("description")
+                "description": repo.get("description"),
+                "homepage": repo.get("homepage")
             })
-    
+            # Se o repo tem homepage, salva na lista de candidatos
+            hp = repo.get("homepage")
+            if hp and "http" in hp:
+                if "github.io" in hp:
+                    possible_sites.insert(0, hp) # Prioridade para github.io
+                else:
+                    possible_sites.append(hp)
+
+    if (not detected_portfolio or is_generic) and possible_sites:
+        print(f"   🔎 Site detectado nos repositórios: {possible_sites[0]}")
+        detected_portfolio = possible_sites[0]
+
     # ==========================================================================
     # ETAPA 4: MONTAR E RETORNAR RESULTADO
     # ==========================================================================
@@ -216,7 +242,7 @@ def fetch_github_profile(username: str) -> Dict[str, Any]:
         "username": user_data.get("login"),             # Username confirmado
         "bio": user_data.get("bio"),                    # Biografia/headline
         "company": user_data.get("company"),            # Empresa atual
-        "blog": user_data.get("blog"),                  # ⭐ WEBSITE PESSOAL!
+        "blog": detected_portfolio,                     # ⭐ WEBSITE PESSOAL!
         "public_repos": user_data.get("public_repos"),  # Total de repos
         "followers": user_data.get("followers"),        # Seguidores
         "recent_projects": repo_summaries               # Top 5 projetos recentes
@@ -324,11 +350,8 @@ def search_candidate_online(query_name: str) -> str:
         #   - homepage: Página pessoal
         # ======================================================================
         
-        search_query = (
-            f"{query_name} linkedin personal website "
-            f"professional profile github portfolio homepage"
-        )
-        
+        search_query = f'"{query_name}" site:linkedin.com/in OR site:github.com'
+
         # ======================================================================
         # ETAPA 3: EXECUTAR BUSCA
         # ======================================================================
@@ -350,7 +373,6 @@ def search_candidate_online(query_name: str) -> str:
         # Transformamos a resposta da API em texto formatado que o LLM
         # pode facilmente interpretar e usar na análise.
         # ======================================================================
-        
         results = []
         
         # Verifica se há resultados na resposta

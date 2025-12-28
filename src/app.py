@@ -252,7 +252,6 @@ def extract_urls_from_text(text: str) -> dict:
     github_match = re.search(r'https?://github\.com/[a-zA-Z0-9_-]+', text)
     if github_match:
         urls["github"] = github_match.group()
-    
     # =========================================================================
     # EXTRAÇÃO 2: Website Pessoal
     # =========================================================================
@@ -262,14 +261,16 @@ def extract_urls_from_text(text: str) -> dict:
     
     # Encontra todas as URLs no texto
     website_matches = re.findall(r'https?://[^\s<>"\']+', text)
-    
+
     for url in website_matches:
         url_lower = url.lower()
-        
+        # Bloqueia APENAS github.com (perfil), aceita github.io (pages)
+        is_github_profile = 'github.com/' in url_lower and '.github.io' not in url_lower
+        is_linkedin = 'linkedin.com' in url_lower
         # Ignora GitHub e LinkedIn (já tratados separadamente)
-        if 'github.com' not in url_lower and 'linkedin.com' not in url_lower:
+        if not is_github_profile and not is_linkedin:
             # Verifica se é um domínio válido de website
-            if any(ext in url_lower for ext in ['.com.br', '.com', '.io', '.dev', '.me']):
+            if any(ext in url_lower for ext in ['.com.br', '.com', '.io', '.dev', '.me', '.org', '.net']):
                 # Remove pontuação que pode ter sido capturada no final
                 urls["website"] = url.rstrip('.,;:')
                 break  # Pega apenas o primeiro match válido
@@ -280,9 +281,8 @@ def extract_urls_from_text(text: str) -> dict:
     # Padrão: https://linkedin.com/in/username ou https://www.linkedin.com/in/username
     # O (?: ) cria grupo não-capturador para o www opcional
     # =========================================================================
-    
     linkedin_match = re.search(
-        r'https?://(?:www\.)?linkedin\.com/in/[a-zA-Z0-9_-]+/?', 
+        r'https?://(?:www\.)?(?:[a-z]{2}\.)?linkedin\.com/(?:in|pub/dir)/[a-zA-Z0-9_/-]+/?',
         text
     )
     if linkedin_match:

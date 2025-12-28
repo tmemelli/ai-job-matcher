@@ -60,6 +60,7 @@ VERSÃO: 1.0.0
 
 import os          # Para acessar variáveis de ambiente (.env)
 import json        # Para parsear respostas JSON do LLM
+import re          # Expressões regulares para extração de URLs
 from typing import List, Optional  # Type hints para melhor legibilidade
 
 # Pydantic: Biblioteca para validação de dados e criação de schemas estruturados
@@ -476,6 +477,27 @@ def analyze_candidate_with_tools(
     # Usa Tavily API (ou DuckDuckGo como fallback) para buscar
     # presença online do candidato
     web_search_context = search_candidate_online(candidate_name)
+
+    # ⭐ LÓGICA DE INTELIGÊNCIA DE LINK:
+    # ⭐ Extrair LinkedIn do resultado da busca web
+    # Em vez de pegar o primeiro que aparecer, pegamos TODOS e filtramos.
+    
+    linkedin_url = None
+    
+    # 1. Encontra TODAS as URLs do LinkedIn no texto retornado pela busca
+    all_linkedin_matches = re.findall(r'https?://(?:www\.)?(?:[a-z]{2}\.)?linkedin\.com/(?:in|pub/dir)/[a-zA-Z0-9_/-]+/?', web_search_context)
+    if all_linkedin_matches:
+        # 2. Tenta encontrar primeiro um link de PERFIL REAL (/in/)
+        # Isso garante que se houver os dois, o /in/ ganha.
+        for link in all_linkedin_matches:
+            if "/in/" in link:
+                linkedin_url = link.rstrip('/')
+                break # Achamos o ouro! Pode parar.
+        
+        # 3. Fallback: Se não achou nenhum /in/, pega o primeiro que tiver (pode ser o pub/dir)
+        # Isso evita ficar "engessado". Se só tiver diretório, usamos ele.
+        if not linkedin_url:
+            linkedin_url = all_linkedin_matches[0].rstrip('/')
     
     # ==========================================================================
     # FASE 3: PREPARAÇÃO DO CONTEXTO PARA O LLM
@@ -492,10 +514,9 @@ def analyze_candidate_with_tools(
 ═══════════════════════════════════════════════════════════════
 GitHub: {github_profile_url or 'Não encontrado'}
 Website Pessoal: {github_website or 'Não encontrado'}
-LinkedIn: Extrair do GitHub ou CV
+LinkedIn: {linkedin_url or 'Não encontrado'}
 ═══════════════════════════════════════════════════════════════
 """
-
     # ==========================================================================
     # FASE 4: ANÁLISE PRINCIPAL COM GPT-4o
     # ==========================================================================
@@ -534,6 +555,10 @@ LinkedIn: Extrair do GitHub ou CV
        - Se tem LinkedIn: CITE a URL completa
     3. NÃO INVENTE URLs. Use apenas as que foram fornecidas acima.
     4. Se a busca web falhou mas temos dados do GitHub, use os dados do GitHub.
+    5. 🚨 REGRA DE OURO DO LINKEDIN:
+       - Ao analisar os resultados da Web Search, IGNORE links que contenham "/pub/dir/".
+       - PRIORIZE EXCLUSIVAMENTE links no formato "/in/" (ex: linkedin.com/in/usuario).
+       - Se houver apenas "/pub/dir/", tente limpar a URL ou não exibir.
 
     INSTRUÇÕES:
     1. Analise o Match Score (0-100) com rigor.
@@ -548,12 +573,15 @@ LinkedIn: Extrair do GitHub ou CV
     
     10. ⭐ IMPORTANTE para 'web_presence_analysis':
         - COMECE listando as URLs encontradas (GitHub, Website, LinkedIn)
+        - OBRIGATÓRIO: Use quebras de linha DUPLAS entre cada link para separar visualmente.
+        - Formato exato desejado:
+          GitHub: [URL]
+          Website: [URL]
+          LinkedIn: [URL]
+
+          [Resumo do perfil em 2-3 frases]
         - Depois de listar as URLs, PULE UMA LINHA antes do resumo
-        - Formato esperado:
-          "GitHub: [URL]. Website: [URL]. LinkedIn: [URL].
-          
-          [Resumo do perfil em 2-3 frases]"
-    
+
     11. Gere 3-5 perguntas de entrevista técnicas baseadas no perfil.
     12. Responda em Português do Brasil.
     """
