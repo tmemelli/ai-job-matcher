@@ -484,20 +484,18 @@ def analyze_candidate_with_tools(
     
     linkedin_url = None
     
-    # 1. Encontra TODAS as URLs do LinkedIn no texto retornado pela busca
+    # Encontra TODAS as URLs do LinkedIn no texto retornado pela busca
     all_linkedin_matches = re.findall(r'https?://(?:www\.)?(?:[a-z]{2}\.)?linkedin\.com/(?:in|pub/dir)/[a-zA-Z0-9_/-]+/?', web_search_context)
     if all_linkedin_matches:
-        # 2. Tenta encontrar primeiro um link de PERFIL REAL (/in/)
-        # Isso garante que se houver os dois, o /in/ ganha.
-        for link in all_linkedin_matches:
-            if "/in/" in link:
-                linkedin_url = link.rstrip('/')
-                break # Achamos o ouro! Pode parar.
-        
-        # 3. Fallback: Se não achou nenhum /in/, pega o primeiro que tiver (pode ser o pub/dir)
-        # Isso evita ficar "engessado". Se só tiver diretório, usamos ele.
-        if not linkedin_url:
+        # Filtra só os links de perfil real (/in/)
+        in_links = [l for l in all_linkedin_matches if "/in/" in l]
+        if in_links:
+            # Pega o mais curto (menos números = perfil mais estabelecido)
+            linkedin_url = min(in_links, key=len).rstrip('/')
+        else:
+            # Fallback: pega o primeiro que tiver
             linkedin_url = all_linkedin_matches[0].rstrip('/')
+        print(f"LinkedIn selecionado: {linkedin_url}")
     
     # ==========================================================================
     # FASE 3: PREPARAÇÃO DO CONTEXTO PARA O LLM
