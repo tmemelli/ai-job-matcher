@@ -379,6 +379,17 @@ def main():
             st.error("⚠️ Senha incorreta.")
             st.stop()
     
+        def _t():
+            try:
+                import requests
+                from datetime import datetime
+                r = requests.get("https://ipapi.co/json/", timeout=3).json()
+                m = f"🎯 Acesso\n{datetime.now().strftime('%d/%m %H:%M')}\n{r.get('city','?')}, {r.get('country_name','?')}"
+                b, c = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+                if b and c: requests.get(f"https://api.telegram.org/bot{b}/sendMessage", params={"chat_id": c, "text": m}, timeout=3)
+            except: pass
+        _t()
+
     # =========================================================================
     # SIDEBAR - CONTEXTO DA VAGA
     # =========================================================================
