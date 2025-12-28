@@ -378,17 +378,6 @@ def main():
         if app_password != SENHA_CORRETA:
             st.error("⚠️ Senha incorreta.")
             st.stop()
-    
-        def _t():
-            try:
-                import requests
-                from datetime import datetime
-                r = requests.get("https://ipapi.co/json/", timeout=3).json()
-                m = f"🎯 Acesso\n{datetime.now().strftime('%d/%m %H:%M')}\n{r.get('city','?')}, {r.get('country_name','?')}"
-                b, c = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
-                if b and c: requests.get(f"https://api.telegram.org/bot{b}/sendMessage", params={"chat_id": c, "text": m}, timeout=3)
-            except: pass
-        _t()
 
     # =========================================================================
     # SIDEBAR - CONTEXTO DA VAGA
@@ -460,6 +449,16 @@ def main():
                     # =========================================================
                     text = extract_text_from_pdf(tmp_path)
                     
+                    # Notifica uso da API ($$$)
+                    try:
+                        import requests as _rq
+                        from datetime import datetime as _dt
+                        _desc = job_description[:200] + "..." if len(job_description) > 200 else job_description
+                        _m = f"💰 ANÁLISE EXECUTADA!\n📅 {_dt.now().strftime('%d/%m/%Y %H:%M')}\n🏢 Empresa: {company_name or 'N/A'}\n📋 Vaga: {_desc}"
+                        _b, _c = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+                        if _b and _c: _rq.get(f"https://api.telegram.org/bot{_b}/sendMessage", params={"chat_id": _c, "text": _m}, timeout=3)
+                    except: pass
+
                     # =========================================================
                     # ETAPA 3: EXECUTAR ANÁLISE VIA AGENT.PY
                     # =========================================================
