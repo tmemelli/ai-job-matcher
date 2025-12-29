@@ -125,27 +125,40 @@ Visão geral das principais funcionalidades do sistema:
 
 ---
 
-## 🧪 Estudo de Caso Real: Vaga ilegra vs. Candidato
+## 🧪 Estudo de Caso Real: Accenture (Inovação/LLMs) vs. Agente Autônomo
 
-Para validar a precisão do agente, submetemos o sistema a um teste cego com uma vaga real e competitiva.
+Para validar a robustez do agente, realizamos um **"Teste Cego"** (Blind Test) utilizando uma vaga de alta complexidade técnica.
 
-**1. O Cenário (Vaga LinkedIn)**
-* **Empresa:** ilegra
-* **Cargo:** Python Developer (Sênior)
-* **Stack Exigida:** Python, AWS (Lambda, DynamoDB), Docker, Terraform.
+**1. O Cenário (A Armadilha)**
+* **Empresa:** Accenture Brasil (Liquid Studio)
+* **Cargo:** Desenvolvedor(a) Inovação – Python | LLMs
+* **O Desafio:** Submetemos o currículo (`resume_test.pdf`) intencionalmente **SEM LINKS** (removemos GitHub, LinkedIn e Portfolio).
+* **Objetivo:** Provar que o agente consegue encontrar o candidato e avaliar seu código real, mesmo sem as URLs no papel.
 
-**2. A Análise do Agente**
-O sistema processou o currículo contra a vaga e gerou os seguintes insights:
+**2. A Prova Técnica (Backend Logs)**
+Nos bastidores, o sistema detectou a falha no PDF e iniciou o protocolo de busca autônoma. O log do servidor confirma a extração do usuário `tmemelli` diretamente dos resultados de busca da Web.
+
+> *Raio-X do Processamento: O sistema detecta a ausência de links, decide buscar na web e encontra o GitHub.*
+![Log de Processamento Backend](assets/terminal_log.png)
+
+**3. O Resultado Visual (O que o Recrutador Vê)**
+Na interface, os campos que estavam vazios no PDF aparecem preenchidos automaticamente. O agente não só encontrou o GitHub, como analisou o código contido nele para gerar o Match Score.
 
 * **✅ Match Score: 85%**
-    * O agente identificou uma alta compatibilidade. Diferente de um ATS comum que poderia descartar o candidato por falta de palavras-chave exatas de infraestrutura, a IA entendeu que a base sólida de Engenharia de Software (Clean Arch, TDD, SOLID) sustentava o nível **Sênior**.
-* **🎯 Validação de Senioridade**
-    * **Vaga Pede:** Sênior
-    * **Candidato:** Validado como **Sênior** pelo agente (não houve rebaixamento de nível, apesar dos gaps).
-* **⚠️ Identificação de Gaps Precisos**
-    * O sistema alertou especificamente: *"Falta experiência explícita com AWS (Lambda, API Gateway, DynamoDB)"* e *"Forte vivência com Terraform"*. Isso direciona o recrutador para investigar o quanto o candidato estaria disposto a aprender essas ferramentas.
-* **🎤 Perguntas Geradas**
-    * Para mitigar o risco, o agente gerou uma pergunta técnica difícil sobre *"Desafios em projetos Serverless"*, permitindo validar se o candidato tem conceitos teóricos mesmo sem a prática da ferramenta específica.
+    * A análise técnica considerou os repositórios públicos encontrados (como o CashFlow API), validando a senioridade em Python, FastAPI e OpenAI API, essenciais para a vaga de Inovação.
+    
+![Dashboard com Links Encontrados](assets/dashboard.png)
+
+* **⚠️ Identificação Cirúrgica de Gaps**
+    * A vaga exigia especificamente **Azure** e **Jenkins**. O agente identificou corretamente que o candidato possui experiência generalista em CI/CD e AWS, mas marcou a falta das ferramentas específicas da vaga como um ponto de atenção.
+    
+![Análise de Gaps](assets/gaps.png)
+
+* **🎤 Perguntas Contextuais (Modo Entrevista)**
+    * Como a vaga menciona "Integração de APIs de LLMs", o agente gerou perguntas específicas sobre esse tema, fugindo do padrão genérico.
+    * *Exemplo gerado:* "Como você integraria uma API de LLM com um sistema backend existente?"
+
+![Perguntas Geradas](assets/interview.png)
 
 ---
 
