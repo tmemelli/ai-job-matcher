@@ -425,7 +425,7 @@ def analyze_candidate_with_tools(
     # Objetivo: Enriquecer o perfil com dados do GitHub e Web
     # Ferramentas: fetch_github_profile() e search_candidate_online()
     # ==========================================================================
-    
+        
     # --- 2.1: Inicialização das variáveis ---
     github_data = {}  # Dados brutos da API do GitHub
     github_data_context = "Perfil GitHub não encontrado."  # Texto para o prompt
@@ -433,8 +433,21 @@ def analyze_candidate_with_tools(
     # URLs que serão extraídas para exibição na interface
     github_profile_url = None  # Ex: https://github.com/tmemelli
     github_website = None      # Campo 'blog' do perfil GitHub (website pessoal)
+
+    # --- 2.2: Busca na Web (LinkedIn, artigos, etc.) ---
+    # Usa Tavily API (ou DuckDuckGo como fallback) para buscar
+    # presença online do candidato
+    web_search_context = search_candidate_online(candidate_name)
+    # Tentamos descobrir o GitHub via Web se não veio do PDF
+    if not github_user or github_user.lower() in ["none", "null", ""]:
+        print("⚠️ GitHub não encontrado no PDF. Tentando descobrir via Web Search...")
+        # Procura por github.com/username nos resultados do Tavily
+        found_github = re.search(r'github\.com/([a-zA-Z0-9_-]+)', web_search_context)
+        if found_github:
+            github_user = found_github.group(1)
+            print(f"✅ GitHub descoberto via Web: {github_user}")
     
-    # --- 2.2: Busca no GitHub (se username foi encontrado) ---
+    # --- 2.3: Busca no GitHub (se username foi encontrado) ---
     # Verifica se o username não é vazio, "none" ou "null"
     if github_user and github_user.lower() not in ["none", "null", ""]:
         
@@ -472,11 +485,6 @@ def analyze_candidate_with_tools(
             # Se falhar, apenas loga o erro e continua
             # O sistema ainda funciona sem dados do GitHub
             print(f"   ❌ Erro: {e}")
-    
-    # --- 2.3: Busca na Web (LinkedIn, artigos, etc.) ---
-    # Usa Tavily API (ou DuckDuckGo como fallback) para buscar
-    # presença online do candidato
-    web_search_context = search_candidate_online(candidate_name)
 
     # ⭐ LÓGICA DE INTELIGÊNCIA DE LINK:
     # ⭐ Extrair LinkedIn do resultado da busca web
